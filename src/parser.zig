@@ -114,12 +114,18 @@ pub fn Parser(comptime Iterator: type) type {
             if (opt.value_ref.element_count > 0) return;
 
             if (opt.envvar) |envvar_name| {
-                if (std.os.getenv(envvar_name)) |value| {
-                    opt.value_ref.put(value, self.alloc) catch |err| {
-                        self.fail("envvar({s}): cannot parse {s} value '{s}': {s}", .{ envvar_name, opt.value_ref.value_data.type_name, value, @errorName(err) });
+                var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+                const allocator = gpa.allocator();
+                const envvar = std.process.getEnvVarOwned(allocator, envvar_name) catch "";
+                if (!std.mem.eql(u8, envvar, "")) {
+                    opt.value_ref.put(envvar, self.alloc) catch |err| {
+                        self.fail("envvar({s}): cannot parse {s} value '{s}': {s}", .{ envvar_name, opt.value_ref.value_data.type_name, envvar, @errorName(err) });
                         unreachable;
                     };
+                } else {
+                    self.fail("envvar({s}): not set", .{envvar_name});
                 }
+                defer allocator.free(envvar);
             } else if (self.app.option_envvar_prefix) |prefix| {
                 var envvar_name = try self.alloc.alloc(u8, opt.long_name.len + prefix.len + 1);
                 defer self.alloc.free(envvar_name);
@@ -133,9 +139,12 @@ pub fn Parser(comptime Iterator: type) type {
                     }
                 }
 
-                if (std.os.getenv(envvar_name)) |value| {
-                    opt.value_ref.put(value, self.alloc) catch |err| {
-                        self.fail("envvar({s}): cannot parse {s} value '{s}': {s}", .{ envvar_name, opt.value_ref.value_data.type_name, value, @errorName(err) });
+                var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+                const allocator = gpa.allocator();
+                const envvar = std.process.getEnvVarOwned(allocator, envvar_name) catch "";
+                if (!std.mem.eql(u8, envvar, "")) {
+                    opt.value_ref.put(envvar, self.alloc) catch |err| {
+                        self.fail("envvar({s}): cannot parse {s} value '{s}': {s}", .{ envvar_name, opt.value_ref.value_data.type_name, envvar, @errorName(err) });
                         unreachable;
                     };
                 }
